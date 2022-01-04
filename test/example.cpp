@@ -1,7 +1,7 @@
 #include <ios>
 #include <iostream>
 #include <type_traits>
-#include <mtap.hpp>
+#include <mtap/mtap.hpp>
 
 int main(int argc, const char* argv[]) {
   using mtap::parser, mtap::option;
