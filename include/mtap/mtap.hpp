@@ -69,6 +69,7 @@ namespace mtap {
 
     static constexpr size_t nargs = N;
     static constexpr size_t nopts = sizeof...(Ws);
+    static constexpr bool is_multi = M;
   };
   
   template <fixed_string... Ws>
@@ -80,7 +81,7 @@ namespace mtap {
   template <size_t N, fixed_string... Ws>
   using option = basic_option<N, false, Ws...>;
 
-  template <size_t N>
+  template <size_t N, bool M>
   class parse_result;
 
   namespace details {
@@ -118,22 +119,23 @@ namespace mtap {
 
     // FORWARD DECLS
     // ==================
-    template <size_t RS, size_t I0, size_t... Is>
+    template <size_t RS, bool M, size_t I0, size_t... Is>
     void update_parse_result_impl(
-      parse_result<RS>& res, int argc, const char* argv[], size_t ibegin,
-      size_t islice, std::index_sequence<I0, Is...>);
-
-    inline void update_parse_result_impl(
-      parse_result<0>& res, int argc, const char** argv, size_t ibegin,
-      size_t islice, std::index_sequence<>);
+      parse_result<RS, M>& res, int argc, const char* argv[], size_t ibegin,
+      size_t islice);
+    
+    template <bool M>
+    void update_parse_result_impl(
+      parse_result<0, M>& res, int argc, const char** argv, size_t ibegin,
+      size_t islice);
   }  // namespace details
 
-  template <size_t N>
+  template <size_t N, bool M>
   class parse_result {
-    template <size_t RS, size_t I0, size_t... Is>
+    template <size_t RS, bool RM>
     friend void details::update_parse_result_impl(
-      parse_result<RS>& res, int argc, const char* argv[], size_t ibegin,
-      size_t islice, std::index_sequence<I0, Is...>);
+      parse_result<RS, RM>& res, int argc, const char* argv[], size_t ibegin,
+      size_t islice);
 
   private:
     std::array<const char*, N> m_data {};
@@ -165,10 +167,11 @@ namespace mtap {
   };
 
   template <>
-  class parse_result<0> {
-    friend inline void details::update_parse_result_impl(
-      parse_result<0>& res, int argc, const char** argv, size_t ibegin,
-      size_t islice, std::index_sequence<>);
+  class parse_result<0, false> {
+    template <bool RM>
+    friend void details::update_parse_result_impl(
+      parse_result<0, RM>& res, int argc, const char** argv, size_t ibegin,
+      size_t islice);
 
   private:
     bool present = false;
@@ -179,6 +182,28 @@ namespace mtap {
     
     static constexpr size_t size = 0;
     bool is_present() const { return present; }
+  };
+  
+  template <>
+  class parse_result<0, true> {
+    template <bool RM>
+    friend void details::update_parse_result_impl(
+      parse_result<0, RM>& res, int argc, const char** argv, size_t ibegin,
+      size_t islice);
+  
+  private:
+    size_t m_count = 0;
+    
+    void update() { ++m_count; }
+  public:
+    parse_result() = default;
+    
+    static constexpr size_t size = 0;
+    bool is_present() const { return m_count > 0; }
+    
+    size_t count() const {
+      return m_count;
+    }
   };
 
   namespace details {
@@ -285,13 +310,13 @@ namespace mtap {
     // ===================
 
     template <is_option_c... Ts>
-    using make_result_tuple = std::tuple<parse_result<Ts::nargs>...>;
+    using make_result_tuple = std::tuple<parse_result<Ts::nargs, Ts::is_multi>...>;
 
     template <class T>
     struct is_parse_result : std::false_type {};
 
-    template <size_t S>
-    struct is_parse_result<parse_result<S>> : std::true_type {};
+    template <size_t N, bool M>
+    struct is_parse_result<parse_result<N, M>> : std::true_type {};
 
     template <class T>
     concept is_parse_result_c = is_parse_result<T>::value;
@@ -305,17 +330,17 @@ namespace mtap {
     template <class T>
     concept is_result_tuple_c = is_result_tuple<T>::value;
 
-    template <size_t RS, size_t I0, size_t... Is>
+    template <size_t RS, bool RM>
     void update_parse_result_impl(
-      parse_result<RS>& res, int argc, const char* argv[], size_t ibegin,
-      size_t islice, std::index_sequence<I0, Is...>) {
-      static_assert(RS == (sizeof...(Is) + 1), "Invalid arguments");
+      parse_result<RS, RM>& res, int argc, const char* argv[], size_t ibegin,
+      size_t islice) {
       res.update(argv + ibegin, islice);
     }
-
+    
+    template <bool RM>
     void update_parse_result_impl(
-      parse_result<0>& res, int argc, const char* argv[], size_t ibegin,
-      size_t islice, std::index_sequence<>) {
+      parse_result<0, RM>& res, int argc, const char* argv[], size_t ibegin,
+      size_t islice) {
       res.update();
     }
 
@@ -323,8 +348,7 @@ namespace mtap {
     void update_result_tuple(
       T& res, int argc, const char* argv[], size_t ibegin, size_t islice = 0) {
       update_parse_result_impl(
-        std::get<I>(res), argc, argv, ibegin, islice,
-        std::make_index_sequence<std::tuple_element_t<I, T>::size> {});
+        std::get<I>(res), argc, argv, ibegin, islice);
     }
 
     template <is_result_tuple_c T>
