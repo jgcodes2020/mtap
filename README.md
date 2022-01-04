@@ -40,5 +40,4 @@ int main(int argc, const char* argv[]) {
 }
 ```
 # Future plans
-- CMake support.
 - Proper documentation.
