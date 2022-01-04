@@ -4,13 +4,13 @@
 #include <mtap/mtap.hpp>
 
 int main(int argc, const char* argv[]) {
-  using mtap::parser;
+  using mtap::option;
   // clang-format off
-  using parse_t = parser<
-    mtap::option<0, "--help">,
-    mtap::option<0, "-a">,
-    mtap::option<0, "-b">,
-    mtap::option<1, "-c">
+  using parse_t = mtap::parser<
+    option<0, "--help">,
+    option<0, "-a">,
+    option<0, "-b">,
+    option<1, "-c">
   >;
   parse_t opts;
   // clang-format on

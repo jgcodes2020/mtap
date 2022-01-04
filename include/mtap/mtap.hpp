@@ -131,7 +131,10 @@ namespace mtap {
   }  // namespace details
 
   template <size_t N, bool M>
-  class parse_result {
+  class parse_result;
+  
+  template <size_t N>
+  class parse_result<N, false> {
     template <size_t RS, bool RM>
     friend void details::update_parse_result_impl(
       parse_result<RS, RM>& res, int argc, const char* argv[], size_t ibegin,
@@ -142,9 +145,8 @@ namespace mtap {
     
     void update(const char* const* p_begin, size_t i_slice) {
       m_data[0] = p_begin[0] + i_slice;
-      for (size_t i = 1; i < N; i++) {
-        m_data[i] = p_begin[i];
-      }
+      if constexpr (N > 1)
+        std::copy(p_begin + 1, p_begin + N, m_data + 1);
     }
   public:
     parse_result() = default;
@@ -182,6 +184,41 @@ namespace mtap {
     
     static constexpr size_t size = 0;
     bool is_present() const { return present; }
+  };
+  
+  template <size_t N>
+  class parse_result<N, true> {
+    template <size_t RS, bool RM>
+    friend void details::update_parse_result_impl(
+      parse_result<RS, RM>& res, int argc, const char* argv[], size_t ibegin,
+      size_t islice);
+  private:
+    std::vector<std::array<const char*, N>> m_data;
+    
+    void update(const char* const* p_begin, size_t i_slice) {
+      m_data.emplace_back();
+      auto& arr = m_data.back();
+      
+      arr[0] = p_begin + i_slice;
+      if constexpr (N > 1)
+        std::copy(p_begin + 1, p_begin + N, arr.begin() + 1);
+    }
+  public:
+    bool is_present() const  {
+      return !m_data.empty();
+    };
+    
+    size_t count() const  {
+      return m_data.size();
+    }
+    
+    const std::array<const char*, N>& operator[](size_t i) const {
+      return m_data[i];
+    }
+    
+    const std::array<const char*, N>& at(size_t i) const {
+      return m_data.at(i);
+    }
   };
   
   template <>
