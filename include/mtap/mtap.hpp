@@ -50,9 +50,14 @@ namespace mtap {
         str[S - 1] != '-');
     }
   }  // namespace details
-
-  template <size_t N, fixed_string... Ws>
-  struct option {
+  
+  // Type parameters:
+  // N - number of arguments
+  // M - if true, the argument can be specified multiple times
+  // Ws... - the option switches for this option
+  template <size_t N, bool M, fixed_string... Ws>
+  struct basic_option {
+    static_assert(sizeof...(Ws) > 0, "Option must have option names");
     static_assert(
       ((Ws.size() >= 2) && ...), "Options cannot be a single character");
     static_assert(
@@ -67,10 +72,13 @@ namespace mtap {
   };
   
   template <fixed_string... Ws>
-  using flag_option = option<0, Ws...>;
+  using flag_option = basic_option<0, false, Ws...>;
   
   template <fixed_string... Ws>
-  using arg_option = option<1, Ws...>;
+  using val_option = basic_option<1, false, Ws...>;
+  
+  template <size_t N, fixed_string... Ws>
+  using option = basic_option<N, false, Ws...>;
 
   template <size_t N>
   class parse_result;
@@ -83,8 +91,8 @@ namespace mtap {
     template <class T>
     struct is_option : std::false_type {};
 
-    template <size_t N, fixed_string... Ws>
-    struct is_option<option<N, Ws...>> : std::true_type {};
+    template <size_t N, bool M, fixed_string... Ws>
+    struct is_option<basic_option<N, M, Ws...>> : std::true_type {};
 
     template <class T>
     concept is_option_c = is_option<T>::value;
@@ -187,8 +195,8 @@ namespace mtap {
           return option_string_set<Ss..., S> {};
       }
 
-      template <size_t N, fixed_string... Ws>
-      constexpr auto operator<<(std::type_identity<option<N, Ws...>>) {
+      template <size_t N, bool M, fixed_string... Ws>
+      constexpr auto operator<<(std::type_identity<basic_option<N, M, Ws...>>) {
         return (*this + ... + string_constant<Ws> {});
       }
 
@@ -224,8 +232,8 @@ namespace mtap {
 
     template <fixed_string Q, size_t I = 0, bool F = false>
     struct option_indexer {
-      template <size_t N, fixed_string... Ws>
-      constexpr auto operator<<(std::type_identity<option<N, Ws...>>) {
+      template <size_t N, bool M, fixed_string... Ws>
+      constexpr auto operator<<(std::type_identity<basic_option<N, M, Ws...>>) {
         if constexpr (F)
           return option_indexer {};
         else if constexpr (((Q == Ws) || ...))
@@ -265,8 +273,8 @@ namespace mtap {
             W.size() != W.size(), "Next string is not a valid option");
       }
 
-      template <size_t N, fixed_string... Ws>
-      constexpr auto operator<<(std::type_identity<option<N, Ws...>>) {
+      template <size_t N, bool M, fixed_string... Ws>
+      constexpr auto operator<<(std::type_identity<basic_option<N, M, Ws...>>) {
         return ((*this) + ... + string_constant<Ws> {});
       }
     };
@@ -458,7 +466,7 @@ namespace mtap {
             else [[unlikely]] {
               if (info.nargs > 0) {
                 // Short option with arguments
-                size_t skip_n = info->nargs;
+                size_t skip_n = info.nargs;
                 if (i + skip_n >= argc)
                   throw argument_error("Not enough arguments for option");
 
