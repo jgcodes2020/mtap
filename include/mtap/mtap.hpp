@@ -65,6 +65,12 @@ namespace mtap {
     static constexpr size_t nargs = N;
     static constexpr size_t nopts = sizeof...(Ws);
   };
+  
+  template <fixed_string... Ws>
+  using flag_option = option<0, Ws...>;
+  
+  template <fixed_string... Ws>
+  using arg_option = option<1, Ws...>;
 
   template <size_t N>
   class parse_result;
