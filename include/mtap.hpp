@@ -476,11 +476,10 @@ namespace mtap {
             continue;
           }
           // parse some short options
-          const details::rt::optinfo<res_tuple_t>* info;
           for (size_t j = 1; j < arg.size(); j++) {
-            info = &otable.short_opts.at(arg[j]);
+            const auto& info = otable.short_opts.at(arg[j]);
             if (j + 1 < arg.size()) [[likely]] {
-              auto cmp = info->nargs <=> 1;
+              auto cmp = info.nargs <=> 1;
               if (cmp == std::strong_ordering::greater) {
                 throw argument_error(
                   "Multi-argument short option cannot be spliced");
@@ -489,27 +488,27 @@ namespace mtap {
                 // Argument splicing thing. Example:
                 // cmake -DCMAKE_BUILD_TYPE=Release treats
                 // CMAKE_BUILD_TYPE=Release as an argument to -D
-                info->updater(*options, argc, argv, i, j + 1);
+                info.updater(*options, argc, argv, i, j + 1);
                 break;
               }
               else {
-                info->updater(*options, argc, argv, i, 0);
+                info.updater(*options, argc, argv, i, 0);
               }
             }
             // End of the list
             else [[unlikely]] {
-              if (info->nargs > 0) {
+              if (info.nargs > 0) {
                 // Short option with arguments
                 size_t skip_n = info->nargs;
                 if (i + skip_n >= argc)
                   throw argument_error("Not enough arguments for option");
 
-                info->updater(*options, argc, argv, i + 1, 0);
+                info.updater(*options, argc, argv, i + 1, 0);
                 i += skip_n;
                 continue;
               }
               // Short option without arguments
-              info->updater(*options, argc, argv, i, 0);
+              info.updater(*options, argc, argv, i, 0);
             }
           }
         }
