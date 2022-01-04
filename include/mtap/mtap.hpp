@@ -80,6 +80,9 @@ namespace mtap {
   
   template <size_t N, fixed_string... Ws>
   using option = basic_option<N, false, Ws...>;
+  
+  template <size_t N, fixed_string... Ws>
+  using multi_option = basic_option<N, true, Ws...>;
 
   template <size_t N, bool M>
   class parse_result;
@@ -199,7 +202,7 @@ namespace mtap {
       m_data.emplace_back();
       auto& arr = m_data.back();
       
-      arr[0] = p_begin + i_slice;
+      arr[0] = p_begin[0] + i_slice;
       if constexpr (N > 1)
         std::copy(p_begin + 1, p_begin + N, arr.begin() + 1);
     }

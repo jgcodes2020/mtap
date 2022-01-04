@@ -22,7 +22,7 @@ int main(int argc, const char* argv[]) {
     option<0, "--help">,
     option<0, "-a">,
     option<0, "-b">,
-    option<1, "-c">
+    multi_option<1, "-c">
   > opts;
   
   try {
@@ -41,5 +41,4 @@ int main(int argc, const char* argv[]) {
 ```
 # Future plans
 - CMake support.
-- Support for specifying options multiple times. Currently only the last occurrence of an option will be saved.
 - Proper documentation.
