@@ -15,3 +15,5 @@ if (MTAP_BUILD_TESTS)
   )
   target_link_libraries(example PUBLIC mtap)
 endif()
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS yes)

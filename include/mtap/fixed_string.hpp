@@ -2,6 +2,7 @@
 #define _MTAP_FIXED_STRING_HPP_
 
 #include <algorithm>
+#include <compare>
 #include <cstddef>
 #include <string_view>
 #include <stdexcept>
@@ -51,6 +52,11 @@ namespace mtap {
       return false;
     else
       return std::equal(a.begin(), a.end(), b.begin());
+  }
+  
+  template <size_t Sa, size_t Sb>
+  constexpr std::strong_ordering operator<=>(fixed_string<Sa> a, fixed_string<Sb> b) {
+    return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
   }
 
   template <size_t S>
