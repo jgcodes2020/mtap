@@ -4,8 +4,8 @@
 #include <algorithm>
 #include <compare>
 #include <cstddef>
-#include <string_view>
 #include <stdexcept>
+#include <string_view>
 
 namespace mtap {
   template <size_t S>
@@ -53,13 +53,31 @@ namespace mtap {
     else
       return std::equal(a.begin(), a.end(), b.begin());
   }
-  
+
   template <size_t Sa, size_t Sb>
-  constexpr std::strong_ordering operator<=>(fixed_string<Sa> a, fixed_string<Sb> b) {
-    return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
+  constexpr std::strong_ordering operator<=>(
+    fixed_string<Sa> a, fixed_string<Sb> b) {
+    return std::lexicographical_compare_three_way(
+      a.begin(), a.end(), b.begin(), b.end());
   }
 
   template <size_t S>
   fixed_string(const char (&str)[S]) -> fixed_string<S - 1>;
-}
+
+  template <fixed_string S>
+  struct string_constant {
+    using type = string_constant<S>;
+
+    static constexpr fixed_string value = S;
+
+    constexpr operator fixed_string<S.size()>() { return S; }
+
+    constexpr fixed_string<S.size()> operator()() { return S; }
+  };
+
+  template <fixed_string... Ss>
+  struct string_sequence {
+    static constexpr size_t size = sizeof...(Ss);
+  };
+}  // namespace mtap
 #endif

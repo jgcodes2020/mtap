@@ -43,24 +43,7 @@ namespace mtap {
     template <class T>
     concept is_option_c = is_option<T>::value;
 
-    template <fixed_string S>
-    struct string_constant {
-      using type = string_constant<S>;
-
-      static constexpr fixed_string value = S;
-
-      constexpr operator fixed_string<S.size()>() { return S; }
-
-      constexpr fixed_string<S.size()> operator()() { return S; }
-    };
-
-    template <fixed_string... Ss>
-    struct string_sequence {
-      static constexpr size_t size = sizeof...(Ss);
-    };
-
-    template <char... Cs>
-    using char_sequence = std::integer_sequence<char, Cs...>;
+    
 
     // FORWARD DECLS
     // ==================
