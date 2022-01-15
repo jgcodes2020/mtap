@@ -44,3 +44,7 @@ This library, like any others that I intend specifically to open-source, is lice
 
 # Future plans
 - Proper documentation.
+- API redesign. I haven't even set a version in CMake yet, so this should be fine.
+  - This new API will be based on callbacks, making it more getopt-like.
+  - I also don't have to setup result storage, because it won't even be MTAP's job anymore.
+  - Old API will be available in a branch in case someone still wants to use it.
