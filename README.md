@@ -39,5 +39,8 @@ int main(int argc, const char* argv[]) {
   if (res.is_present()) std::cout << "-c value: " << res[0] << '\n';
 }
 ```
+# Licensing
+This library, like any others that I intend specifically to open-source, is licensed under the Mozilla Public License. I do this specifically to ensure that my code remains open-source, while allowing you, the user, to put it in any project you need it for, whether proprietary or open-source.
+
 # Future plans
 - Proper documentation.

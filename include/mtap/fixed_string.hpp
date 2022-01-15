@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 #ifndef _MTAP_FIXED_STRING_HPP_
 #define _MTAP_FIXED_STRING_HPP_
 
@@ -11,7 +17,8 @@ namespace mtap {
   template <size_t S>
   struct fixed_string {
     char _m_data[S + 1];
-
+    
+    constexpr fixed_string() = default;
     constexpr fixed_string(const char (&str)[S + 1]) {
       if (str[S] != '\0')
         throw std::invalid_argument("Argument is not null-terminated");
@@ -44,6 +51,14 @@ namespace mtap {
     constexpr const char* end() const { return _m_data + S; }
     constexpr const char* cbegin() const { return _m_data; }
     constexpr const char* cend() const { return _m_data + S; }
+    
+    template <size_t L>
+    constexpr fixed_string<L> substr(size_t begin) {
+      fixed_string<L> res;
+      res._m_data[res.size()] = '\0';
+      std::copy_n(this->begin() + begin, L, res.begin());
+      return res;
+    }
   };
 
   template <size_t Sa, size_t Sb>
