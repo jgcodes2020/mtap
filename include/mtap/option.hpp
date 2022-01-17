@@ -1,75 +1,105 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
-
 #ifndef _MTAP_OPTION_HPP_
 #define _MTAP_OPTION_HPP_
-
 #include <algorithm>
-#include <cstddef>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 #include <mtap/fixed_string.hpp>
-
 namespace mtap {
+
+  enum class opt_type : bool { short_opt, long_opt };
+
   namespace details {
-    namespace ctype {
-      constexpr bool is_alnum(char c) {
-        return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') ||
-          ('0' <= c && c <= '9');
-      }
+    template <class T, size_t I>
+    using index_type_sink = T;
 
-      constexpr bool is_alnum_or_dash(char c) {
-        return is_alnum(c) || c == '-';
-      }
-    }  // namespace ctype
+    template <class ISeq>
+    struct callback_sig_helper;
 
-    template <size_t S>
-    consteval bool short_option_valid(fixed_string<S> str) {
-      return (str[0] == '-' && ctype::is_alnum(str[1]));
+    template <size_t... Is>
+    struct callback_sig_helper<std::index_sequence<Is...>> {
+      using type = void(index_type_sink<std::string_view, Is>...);
+    };
+
+    template <size_t I>
+    using make_callback_sig = typename callback_sig_helper<std::make_index_sequence<I>>::type;
+
+    template <class T, class F>
+    struct callable_concept_helper;
+
+    // clang-format off
+    template <class T, class R, class... Args>
+      struct callable_concept_helper<T, R(Args...)> :
+        std::bool_constant <std::is_invocable_v<T, Args...> && std::is_convertible_v<std::invoke_result_t<T, Args...>, R>> {};
+    // clang-format on
+
+    template <class T, class F>
+    concept callable = callable_concept_helper<T, F>::value;
+
+    constexpr bool isalnum(char c) {
+      return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') ||
+        ('0' <= c && c <= '9');
     }
-
-    template <size_t S>
-    consteval bool long_option_valid(fixed_string<S> str) {
-      return (
-        (str[0] == '-' && str[1] == '-') &&
-        std::find_if_not(str.begin() + 2, str.end(), ctype::is_alnum_or_dash) ==
-          str.end() &&
-        str[S - 1] != '-');
+    
+    // Simultaneously classifies and validates an option.
+    static constexpr std::optional<opt_type> classify_opt(
+      std::string_view str) {
+      auto cmp = str.size() <=> 2;
+      if (cmp < 0 || str[0] != '-')
+        return std::nullopt;
+      else if (cmp == 0) {
+        if (isalnum(str[1]))
+          return opt_type::short_opt;
+        else
+          return std::nullopt;
+      }
+      else {
+        auto test_fn = [](char c) {
+          return c == '-' || isalnum(c);
+        };
+        for (auto it = str.begin() + 2; it < str.end(); it++) {
+          if (!(isalnum(*it) || *it == '-'))
+            return std::nullopt;
+        }
+        return opt_type::long_opt;
+      }
     }
+    
+    template <fixed_string Switch, size_t NArgs, callable<make_callback_sig<NArgs>> F>
+    struct opt_impl {
+      static_assert(classify_opt(Switch).has_value(), "Invalid option switch");
+      
+      static constexpr auto name = Switch;
+      static constexpr auto type = classify_opt(Switch);
+      static constexpr auto nargs = NArgs;
+      
+      using function_t = F;
+      using callback_t = make_callback_sig<NArgs>;
+      
+      F fn;
+      opt_impl(F&& f) : fn(f) {}
+    };
+    
+    
   }  // namespace details
+  template <fixed_string Switch, size_t NArgs, details::callable<details::make_callback_sig<NArgs>> F>
+  auto option(F&& fn) {
+    return details::opt_impl<Switch, NArgs, F>(std::forward<F>(fn));
+  }
   
-  // Type parameters:
-  // N - number of arguments
-  // M - if true, the argument can be specified multiple times
-  // Ws... - the option switches for this option
-  template <size_t N, bool M, fixed_string... Ws>
-  struct basic_option {
-    static_assert(sizeof...(Ws) > 0, "Option must have option names");
-    static_assert(
-      ((Ws.size() >= 2) && ...), "Options cannot be a single character");
-    static_assert(
-      ((Ws.size() > 2 || details::short_option_valid(Ws)) && ...),
-      "Short options must be a single dash followed by a single alphanumeric character");
-    static_assert(
-      ((Ws.size() == 2 || details::long_option_valid(Ws)) && ...),
-      "Long options must be two dashes followed by a sequence of alphanumeric characters and/or dashes, but cannot end with a dash");
-
-    static constexpr size_t nargs = N;
-    static constexpr size_t nopts = sizeof...(Ws);
-    static constexpr bool is_multi = M;
+  template <class... Opts>
+  class parser;
+  
+  template <fixed_string... Ns, size_t... Ss, class... Fs>
+  class parser<details::opt_impl<Ns, Ss, Fs>...> {
+  private:
+    std::unique_ptr<std::tuple<Fs...>> callbacks;
+    
   };
-  
-  template <fixed_string... Ws>
-  using flag_option = basic_option<0, false, Ws...>;
-  
-  template <fixed_string... Ws>
-  using val_option = basic_option<1, false, Ws...>;
-  
-  template <size_t N, fixed_string... Ws>
-  using option = basic_option<N, false, Ws...>;
-  
-  template <size_t N, fixed_string... Ws>
-  using multi_option = basic_option<N, true, Ws...>;
-}
+}  // namespace mtap
 #endif
