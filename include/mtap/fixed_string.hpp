@@ -22,11 +22,12 @@ namespace mtap {
     char _m_data[S + 1];
 
   private:
-    constexpr fixed_string() = default;
+    
 
   public:
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
-
+    
+    constexpr fixed_string() = default;
     constexpr fixed_string(const char (&str)[S + 1]) {
       if (str[S] != '\0')
         throw std::invalid_argument("Argument is not null-terminated");
@@ -61,7 +62,7 @@ namespace mtap {
     constexpr const char* cend() const { return _m_data + S; }
 
     template <size_t B, size_t L = npos>
-    constexpr auto substr() {
+    constexpr auto substr() const {
       if constexpr (L == npos) {
         fixed_string<S - B> res;
         std::copy(this->begin() + B, this->end(), res.begin());
@@ -92,52 +93,5 @@ namespace mtap {
 
   template <size_t S>
   fixed_string(const char (&str)[S]) -> fixed_string<S - 1>;
-
-  template <fixed_string S>
-  struct string_constant {
-    using type = string_constant<S>;
-
-    static constexpr fixed_string value = S;
-
-    constexpr operator fixed_string<S.size()>() { return S; }
-
-    constexpr fixed_string<S.size()> operator()() { return S; }
-  };
-
-  template <fixed_string... Ss>
-  struct string_sequence {
-    static constexpr size_t size = sizeof...(Ss);
-  };
-
-  namespace details {
-    template <size_t I, fixed_string S>
-    struct string_index_leaf {
-      static constexpr fixed_string value = S;
-    };
-
-    template <class ISeq, fixed_string... Ss>
-    struct string_index_root;
-
-    template <size_t... Is, fixed_string... Ss>
-    struct string_index_root<std::index_sequence<Is...>, Ss...> :
-      string_index_leaf<Is, Ss>... {};
-
-    template <size_t I, fixed_string S>
-    string_index_leaf<I, S> deduce_string_index(string_index_leaf<I, S>);
-
-  }  // namespace details
-
-  template <size_t I, class SSeq>
-  struct string_sequence_element;
-
-  template <size_t I, fixed_string... Ss>
-  struct string_sequence_element<I, string_sequence<Ss...>> {
-    static constexpr fixed_string value = decltype(details::deduce_string_index<I>(
-      details::string_index_root<
-        std::make_index_sequence<sizeof...(Ss)>, Ss...> {}))::value;
-  };
-
-  template<size_t I, class SSeq>
-  inline constexpr fixed_string string_sequence_element_v = string_sequence_element<I, SSeq>::value;
 }  // namespace mtap
 #endif
