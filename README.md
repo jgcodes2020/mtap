@@ -11,40 +11,34 @@ MTAP enforces certain conventions for options names:
 
 # Example usage
 ```c++
+#include <cstdlib>
 #include <iostream>
-#include <type_traits>
-#include <mtap.hpp>
+#include <mtap/mtap.hpp>
+
+using mtap::option;
 
 int main(int argc, const char* argv[]) {
-  using mtap::parser, mtap::option;
-  
-  parser<
-    option<0, "--help">,
-    option<0, "-a">,
-    option<0, "-b">,
-    multi_option<1, "-c">
-  > opts;
-  
-  try {
-    opts.parse_args(argc, argv);
-  }
-  catch (const mtap::argument_error& err) {
-    std::cout << argv[0] << ": " << err.what() << "\n";
-    return 1;
-  }
-  
-  std::cout << "-a present: " << opts.get<"-a">().is_present() << '\n';
-  std::cout << "-b present: " << opts.get<"-b">().is_present() << '\n';
-  auto res = opts.get<"-c">();
-  if (res.is_present()) std::cout << "-c value: " << res[0] << '\n';
+  mtap::parser(
+    option<"--help", 0>([]() {
+      std::cout << "Some usage options\n";
+      std::exit(0);
+    }),
+    option<"-a", 0>([]() {
+      std::cout << "Option A set\n";
+    }),
+    option<"-b", 0>([]() {
+      std::cout << "Option B set\n";
+    }),
+    option<"-c", 1>([](std::string_view value) {
+      std::cout << "Option C set, value = " << value << '\n';
+    })
+  ).parse(argc, argv);
 }
 ```
 # Licensing
-This library, like any others that I intend specifically to open-source, is licensed under the Mozilla Public License. I do this specifically to ensure that my code remains open-source, while allowing you, the user, to put it in any project you need it for, whether proprietary or open-source.
+This library, like any others that I intend specifically to open-source, is licensed under the [Mozilla Public License](LICENSE.md). I do this specifically to ensure that my code remains open-source, while allowing you, the user, to put it in any project you need it for, whether proprietary or open-source.
+
+The tests are licensed under [0-clause BSD](test/LICENSE.md).
 
 # Future plans
 - Proper documentation.
-- API redesign. I haven't even set a version in CMake yet, so this should be fine.
-  - This new API will be based on callbacks, making it more getopt-like.
-  - I also don't have to setup result storage, because it won't even be MTAP's job anymore.
-  - Old API will be available in a branch in case someone still wants to use it.
