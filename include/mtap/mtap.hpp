@@ -7,6 +7,7 @@
 #ifndef _MTAP_OPTION_HPP_
 #define _MTAP_OPTION_HPP_
 #include <algorithm>
+#include <exception>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -23,6 +24,9 @@
 #include <mtap/meta_helpers.hpp>
 
 namespace mtap {
+  class argument_error : public std::runtime_error::runtime_error {
+    using std::runtime_error::runtime_error;
+  };
 
   enum class opt_type : bool { short_opt, long_opt };
 
@@ -189,15 +193,15 @@ namespace mtap {
       }
       else if constexpr (arg_size == 1) {
         if (iarg + (clip ? 0 : 1) >= argc)
-          throw std::runtime_error("Not enough arguments remaining");
+          throw argument_error("Not enough arguments remaining");
         std::get<I>(tup)(argv[iarg + (clip ? 0 : 1)] + clip);
       }
       else {
         if (clip)
-          throw std::runtime_error(
+          throw argument_error(
             "Multi-arg short option cannot be specified in the same argument");
         if (iarg + arg_size >= argc)
-          throw std::runtime_error("Not enough arguments remaining");
+          throw argument_error("Not enough arguments remaining");
         // Inline pack expansion to split the next arg_size arguments into
         // parameters.
         [&]<size_t... Is>(std::index_sequence<Is...>) {
@@ -214,7 +218,7 @@ namespace mtap {
       constexpr size_t arg_size =
         integer_sequence_element_v<I, std::index_sequence<Ss...>>;
       if (iarg + arg_size >= argc)
-        throw std::runtime_error("Not enough arguments remaining");
+        throw argument_error("Not enough arguments remaining");
       if constexpr (arg_size == 0) {
         std::get<I>(tup)();
       }
@@ -280,20 +284,30 @@ namespace mtap {
             }
             else if (details::isalnum(arg[2])) {
               // argument is long option
-              size_t last_narg =
-                long_vtable.at(argv[i] + 2)(*ctable, argc, argv, i);
+              size_t last_narg;
+              try {
+                last_narg = long_vtable.at(argv[i] + 2)(*ctable, argc, argv, i);
+              }
+              catch (const std::out_of_range& out) {
+                std::throw_with_nested(argument_error("Cannot use option"));
+              }
               i += (last_narg + 1);
             }
             else
-              throw std::runtime_error("bad option");
+              throw argument_error("Invalid long-option string");
           }
           else if (details::isalnum(arg[1])) {
             // parse short options
             size_t last_narg;
             for (size_t j = 1; arg[j] != '\0'; j++) {
               // clip == 0 signals "don't splice"
+              try {
               last_narg = short_vtable.at(arg[j])(
                 *ctable, argc, argv, i, (arg[j + 1] == '\0') ? 0 : j + 1);
+              }
+              catch (const std::out_of_range& out) {
+                std::throw_with_nested(argument_error("Cannot use option"));
+              }
               if (last_narg == 0) {
                 if (arg[j + 1] == '\0')
                   ++i;
@@ -319,7 +333,14 @@ namespace mtap {
 
   public:
     // Parse
-    void parse(int argc, const char* argv[]) { main_parser(argc, argv); }
+    void parse(int argc, const char* argv[]) { 
+      try {
+        main_parser(argc, argv); 
+      }
+      catch (const argument_error& err) {
+        std::cerr << argv[0] << ": " << err.what() << '\n';
+      }
+    }
   };
 
   template <fixed_string... Ns, size_t... Ss, class... Fs>
