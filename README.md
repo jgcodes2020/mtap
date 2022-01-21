@@ -1,13 +1,8 @@
 # MTAP (Minimal Templated Argument Parser)
-A bare-minimum C++20 argument parser, inspired by getopt. Instead of trying to be featureful, this solely focuses on being an argument parser, not a help generator or something else. Because some of the runtime classes involved are not `constexpr`, options are specified as template arguments.
+---
+A minimal, but heavily templated argument parser for C++20. This library aims to be an argument parser and nothing more. I originally conceived this library as part of cxx-coreutils.
 
-MTAP enforces certain conventions for options names:
-- Options beginning with 1 dash are short options.
-  - Short options can only be 1 character in length.
-  - The character must be alphanumeric.
-- Options beginning with 2 dashes are long options.
-  - After the 2 dashes, you may use any sequence of alphanumeric characters and dashes.
-  - The option's name may not end with a dash.
+Each option is templated on its value, the number of arguments it receives and a callback. MTAP then runs this callback each time it sees an option. The arguments are passed to the callbacks as function parameters of type std::string_view.
 
 # Example usage
 ```c++
