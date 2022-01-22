@@ -4,8 +4,18 @@
 
 using mtap::option;
 
+template <class T>
+void print_csv(const T& x) {
+  const char* sep = "";
+  for (const auto& i: x) {
+    std::cout << sep << i;
+    sep = ", ";
+  }
+  std::cout << '\n';
+}
+
 int main(int argc, const char* argv[]) {
-  mtap::parser(
+  auto posargs = mtap::parser(
     option<"--help", 0>([]() {
       std::cout << "Some usage options\n";
       std::exit(0);
@@ -20,4 +30,5 @@ int main(int argc, const char* argv[]) {
       std::cout << "Option C set, value = " << value << '\n';
     })
   ).parse(argc, argv);
+  print_csv(posargs);
 }

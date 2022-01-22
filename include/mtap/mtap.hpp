@@ -7,6 +7,7 @@
 #ifndef _MTAP_OPTION_HPP_
 #define _MTAP_OPTION_HPP_
 #include <algorithm>
+#include <cstdlib>
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -151,7 +152,8 @@ namespace mtap {
           return option_filter<
             type_sequence<string_index_leaf<SIs, SNs>...>,
             type_sequence<
-              string_index_leaf<LIs, LNs>..., string_index_leaf<I, N>>,
+              string_index_leaf<LIs, LNs>...,
+              string_index_leaf<I, N.template substr<2>()>>,
             I + 1> {};
         }
       }
@@ -235,7 +237,7 @@ namespace mtap {
       using opt_pairs = typename decltype((
         details::option_filter<> {} + ... +
         std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}))::short_opts;
-      
+
       return []<fixed_string... VNs, size_t... VIs>(
         type_sequence<details::string_index_leaf<VIs, VNs>...>) {
         return vtable_short_t {{VNs[1], dispatch_short<VIs>}...};
@@ -250,7 +252,7 @@ namespace mtap {
 
       return []<fixed_string... VNs, size_t... VIs>(
         type_sequence<details::string_index_leaf<VIs, VNs>...>) {
-        return vtable_long_t {{VNs.template substr<2>(), dispatch_long<VIs>}...};
+        return vtable_long_t {{VNs, dispatch_long<VIs>}...};
       }
       (opt_pairs {});
     }
@@ -272,21 +274,22 @@ namespace mtap {
     ~parser() = default;
 
   private:
-    void main_parser(int argc, const char* argv[]) {
-      int i               = 1;
-      while (i < argc) {
+    std::vector<std::string_view> main_parser(int argc, const char* argv[]) {
+      std::vector<std::string_view> posargs;
+      bool parse_opts = true;
+      for (int i = 1; i < argc;) {
         const char* arg = argv[i];
-        if (arg[0] == '-') {
+        if (arg[0] == '-' && parse_opts) {
           if (arg[1] == '-') {
             if (arg[2] == '\0') {
               // argument is '--', stop
-              break;
+              parse_opts = false;
             }
             else if (details::isalnum(arg[2])) {
               // argument is long option
               size_t last_narg;
               try {
-                last_narg = long_vtable.at(argv[i] + 2)(*ctable, argc, argv, i);
+                last_narg = long_vtable.at(arg + 2)(*ctable, argc, argv, i);
               }
               catch (const std::out_of_range& out) {
                 std::throw_with_nested(argument_error("Cannot use option"));
@@ -302,8 +305,8 @@ namespace mtap {
             for (size_t j = 1; arg[j] != '\0'; j++) {
               // clip == 0 signals "don't splice"
               try {
-              last_narg = short_vtable.at(arg[j])(
-                *ctable, argc, argv, i, (arg[j + 1] == '\0') ? 0 : j + 1);
+                last_narg = short_vtable.at(arg[j])(
+                  *ctable, argc, argv, i, (arg[j + 1] == '\0') ? 0 : j + 1);
               }
               catch (const std::out_of_range& out) {
                 std::throw_with_nested(argument_error("Cannot use option"));
@@ -328,17 +331,23 @@ namespace mtap {
             }
           }
         }
+        else {
+          posargs.push_back(argv[i]);
+          ++i;
+        }
       }
+      return posargs;
     }
 
   public:
     // Parse
-    void parse(int argc, const char* argv[]) { 
+    std::vector<std::string_view> parse(int argc, const char* argv[]) {
       try {
-        main_parser(argc, argv); 
+        return main_parser(argc, argv);
       }
       catch (const argument_error& err) {
         std::cerr << argv[0] << ": " << err.what() << '\n';
+        exit(0);
       }
     }
   };

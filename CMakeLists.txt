@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(mtap
   LANGUAGES CXX
+  VERSION 0.2
 )
 
 add_library(mtap INTERFACE)
