@@ -29,6 +29,8 @@ int main(int argc, const char* argv[]) {
     option<"-c", 1>([](std::string_view value) {
       std::cout << "Option C set, value = " << value << '\n';
     }),
-    
+    pos_arg([](std::string_view value) {
+      std::cout << "Positional argument: " << value << '\n';
+    })
   ).parse(argc, argv);
 }

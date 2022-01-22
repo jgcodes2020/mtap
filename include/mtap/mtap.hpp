@@ -48,24 +48,17 @@ namespace mtap {
     using make_callback_sig =
       typename callback_sig_helper<std::make_index_sequence<I>>::type;
 
-    template <class T, class F>
-    struct callable_concept_helper;
-
-    // clang-format off
+    
     template <class T, class R, class... Args>
-      struct callable_concept_helper<T, R(Args...)> :
-        std::bool_constant <[]() -> bool {
-          if constexpr (std::is_invocable_v<T, Args...>) {
-            return std::is_convertible_v<std::invoke_result_t<T, Args...>, R>;
-          }
-          else {
-            return false;
-          }
-        }()> {};
-    // clang-format on
+    constexpr bool callable_helper(std::type_identity<T>, std::type_identity<R(Args...)>) {
+      if constexpr (std::is_invocable_v<T, Args...>)
+        return std::is_convertible_v<std::invoke_result_t<T, Args...>, R>;
+      else
+        return false;
+    }
 
     template <class T, class F>
-    concept callable = callable_concept_helper<T, F>::value;
+    concept callable = callable_helper(std::type_identity<T> {}, std::type_identity<F> {});
 
     constexpr bool isalnum(char c) {
       return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') ||
@@ -222,6 +215,10 @@ namespace mtap {
     using vtable_long_t = std::unordered_map<
       std::string_view,
       size_t (*)(std::tuple<Fs...>&, int, const char*[], int)>;
+    
+    using option_filter_t = decltype((
+        details::option_filter<> {} + ... +
+        std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}));
 
     std::unique_ptr<std::tuple<Fs...>> ctable;
     vtable_short_t short_vtable;
@@ -281,27 +278,21 @@ namespace mtap {
     }
 
     static vtable_short_t make_short_vtable() {
-      using opt_pairs = typename decltype((
-        details::option_filter<> {} + ... +
-        std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}))::short_opts;
 
       return []<fixed_string... VNs, size_t... VIs>(
         type_sequence<details::string_index_leaf<VIs, VNs>...>) {
         return vtable_short_t {{VNs[1], dispatch_short<VIs>}...};
       }
-      (opt_pairs {});
+      (typename option_filter_t::short_opts {});
     }
 
     static vtable_long_t make_long_vtable() {
-      using opt_pairs = typename decltype((
-        details::option_filter<> {} + ... +
-        std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}))::long_opts;
 
       return []<fixed_string... VNs, size_t... VIs>(
         type_sequence<details::string_index_leaf<VIs, VNs>...>) {
         return vtable_long_t {{VNs, dispatch_long<VIs>}...};
       }
-      (opt_pairs {});
+      (typename option_filter_t::long_opts {});
     }
 
   public:
@@ -378,13 +369,9 @@ namespace mtap {
           }
         }
         else {
-          static constexpr auto posarg = decltype((
-            details::option_filter<> {} + ... +
-            std::type_identity<
-              details::opt_impl<Ns, Ss, Fs>> {}))::pos_arg_index;
-          
+          static constexpr auto posarg = option_filter_t::pos_arg_index;
           if constexpr (posarg.has_value()) {
-            std::get<posarg.value()>(*ctable)(argv[i]);
+            std::get<posarg.value()>(*ctable)(argv[i++]);
           }
         }
       }

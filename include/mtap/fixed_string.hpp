@@ -64,13 +64,13 @@ namespace mtap {
     template <size_t B, size_t L = npos>
     constexpr auto substr() const {
       if constexpr (L == npos) {
-        fixed_string<S - B> res;
+        fixed_string<S - B> res {};
         std::copy(this->begin() + B, this->end(), res.begin());
         return res;
       }
       else {
         static_assert(B + L <= S, "Substring indices out of bounds");
-        fixed_string<L> res;
+        fixed_string<L> res {};
         std::copy_n(this->begin() + B, L, res.begin());
         return res;
       }
