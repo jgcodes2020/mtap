@@ -2,7 +2,7 @@
 #include <iostream>
 #include <mtap/mtap.hpp>
 
-using mtap::option;
+using mtap::option, mtap::pos_arg;
 
 template <class T>
 void print_csv(const T& x) {
@@ -15,7 +15,7 @@ void print_csv(const T& x) {
 }
 
 int main(int argc, const char* argv[]) {
-  auto posargs = mtap::parser(
+  mtap::parser(
     option<"--help", 0>([]() {
       std::cout << "Some usage options\n";
       std::exit(0);
@@ -28,7 +28,7 @@ int main(int argc, const char* argv[]) {
     }),
     option<"-c", 1>([](std::string_view value) {
       std::cout << "Option C set, value = " << value << '\n';
-    })
+    }),
+    
   ).parse(argc, argv);
-  print_csv(posargs);
 }

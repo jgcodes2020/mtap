@@ -14,6 +14,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -29,7 +30,7 @@ namespace mtap {
     using std::runtime_error::runtime_error;
   };
 
-  enum class opt_type : bool { short_opt, long_opt };
+  enum class opt_type : uint16_t { short_opt, long_opt, pos_arg };
 
   namespace details {
     template <class T, size_t I>
@@ -53,7 +54,14 @@ namespace mtap {
     // clang-format off
     template <class T, class R, class... Args>
       struct callable_concept_helper<T, R(Args...)> :
-        std::bool_constant <std::is_invocable_v<T, Args...> && std::is_convertible_v<std::invoke_result_t<T, Args...>, R>> {};
+        std::bool_constant <[]() -> bool {
+          if constexpr (std::is_invocable_v<T, Args...>) {
+            return std::is_convertible_v<std::invoke_result_t<T, Args...>, R>;
+          }
+          else {
+            return false;
+          }
+        }()> {};
     // clang-format on
 
     template <class T, class F>
@@ -66,7 +74,14 @@ namespace mtap {
 
     // Simultaneously classifies and validates an option.
     static constexpr std::optional<opt_type> classify_opt(
-      std::string_view str) {
+      std::string_view str, size_t nargs) {
+      using namespace std::string_view_literals;
+      if (str == "\1"sv) {
+        if (nargs == 1)
+          return opt_type::pos_arg;
+        else
+          return std::nullopt;
+      }
       auto cmp = str.size() <=> 2;
       if (cmp < 0 || str[0] != '-')
         return std::nullopt;
@@ -95,10 +110,11 @@ namespace mtap {
     template <
       fixed_string Switch, size_t NArgs, callable<make_callback_sig<NArgs>> F>
     struct opt_impl {
-      static_assert(classify_opt(Switch).has_value(), "Invalid option switch");
+      static_assert(
+        classify_opt(Switch, NArgs).has_value(), "Invalid option switch");
 
       static constexpr auto name  = Switch;
-      static constexpr auto type  = classify_opt(Switch);
+      static constexpr auto type  = classify_opt(Switch, NArgs).value();
       static constexpr auto nargs = NArgs;
 
       using function_t = F;
@@ -125,20 +141,42 @@ namespace mtap {
     return details::opt_impl<Switch, NArgs, F>(std::forward<F>(fn));
   }
 
+  template <details::callable<details::make_callback_sig<1>> F>
+  auto pos_arg(F&& fn) {
+    return details::opt_impl<"\1", 1, F>(std::forward<F>(fn));
+  }
+
   namespace details {
     template <
       class ShortSeq = type_sequence<>, class LongSeq = type_sequence<>,
-      int Index = 0>
+      class PAIndex = void, size_t Index = 0>
     struct option_filter;
+    
+    template <class PA>
+    struct eval_posarg_index;
+    
+    template <>
+    struct eval_posarg_index<void> {
+      static constexpr std::optional<size_t> value = std::nullopt;
+    };
+    
+    template <size_t I>
+    struct eval_posarg_index<std::integral_constant<size_t, I>>  {
+      static constexpr std::optional<size_t> value = I;
+    };
+    
+    template <class PA>
+    inline constexpr std::optional<size_t> eval_posarg_index_v = eval_posarg_index<PA>::value;
 
     template <
       fixed_string... SNs, size_t... SIs, fixed_string... LNs, size_t... LIs,
-      int I>
+      class PA, size_t I>
     struct option_filter<
       type_sequence<string_index_leaf<SIs, SNs>...>,
-      type_sequence<string_index_leaf<LIs, LNs>...>, I> {
+      type_sequence<string_index_leaf<LIs, LNs>...>, PA, I> {
       using short_opts = type_sequence<string_index_leaf<SIs, SNs>...>;
       using long_opts  = type_sequence<string_index_leaf<LIs, LNs>...>;
+      static constexpr std::optional<size_t> pos_arg_index = eval_posarg_index_v<PA>;
 
       template <fixed_string N, size_t S, class F>
       constexpr auto operator+(std::type_identity<opt_impl<N, S, F>>) {
@@ -146,15 +184,24 @@ namespace mtap {
           return option_filter<
             type_sequence<
               string_index_leaf<SIs, SNs>..., string_index_leaf<I, N>>,
-            type_sequence<string_index_leaf<LIs, LNs>...>, I + 1> {};
+            type_sequence<string_index_leaf<LIs, LNs>...>, PA, I + 1> {};
         }
-        else {
+        else if constexpr (opt_impl<N, S, F>::type == opt_type::long_opt) {
           return option_filter<
             type_sequence<string_index_leaf<SIs, SNs>...>,
             type_sequence<
               string_index_leaf<LIs, LNs>...,
               string_index_leaf<I, N.template substr<2>()>>,
-            I + 1> {};
+            PA, I + 1> {};
+        }
+        else if constexpr (opt_impl<N, S, F>::type == opt_type::pos_arg) {
+          static_assert(
+            std::is_void_v<PA>,
+            "Only one positional argument handler is allowed");
+          return option_filter<
+            type_sequence<string_index_leaf<SIs, SNs>...>,
+            type_sequence<string_index_leaf<LIs, LNs>...>,
+            std::integral_constant<size_t, I>, I + 1> {};
         }
       }
     };
@@ -274,8 +321,7 @@ namespace mtap {
     ~parser() = default;
 
   private:
-    std::vector<std::string_view> main_parser(int argc, const char* argv[]) {
-      std::vector<std::string_view> posargs;
+    void main_parser(int argc, const char* argv[]) {
       bool parse_opts = true;
       for (int i = 1; i < argc;) {
         const char* arg = argv[i];
@@ -332,18 +378,23 @@ namespace mtap {
           }
         }
         else {
-          posargs.push_back(argv[i]);
-          ++i;
+          static constexpr auto posarg = decltype((
+            details::option_filter<> {} + ... +
+            std::type_identity<
+              details::opt_impl<Ns, Ss, Fs>> {}))::pos_arg_index;
+          
+          if constexpr (posarg.has_value()) {
+            std::get<posarg.value()>(*ctable)(argv[i]);
+          }
         }
       }
-      return posargs;
     }
 
   public:
     // Parse
-    std::vector<std::string_view> parse(int argc, const char* argv[]) {
+    void parse(int argc, const char* argv[]) {
       try {
-        return main_parser(argc, argv);
+        main_parser(argc, argv);
       }
       catch (const argument_error& err) {
         std::cerr << argv[0] << ": " << err.what() << '\n';
