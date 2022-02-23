@@ -27,7 +27,11 @@
 
 namespace mtap {
   class argument_error : public std::runtime_error::runtime_error {
-    using std::runtime_error::runtime_error;
+  public:
+    argument_error(const char* what) : runtime_error(what) {}
+    argument_error(const std::string& what) : runtime_error(what) {}
+    
+    argument_error(const argument_error& rhs) noexcept = default;
   };
 
   enum class opt_type : uint16_t { short_opt, long_opt, pos_arg };
