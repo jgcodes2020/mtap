@@ -110,18 +110,22 @@ namespace mtap {
     };
   }  // namespace details
 
-  template <class SSeq>
-  struct string_sequence_unique;
+  // template <class SSeq>
+  // struct string_sequence_unique;
 
+  // template <fixed_string... Ss>
+  // struct string_sequence_unique<string_sequence<Ss...>> :
+  //   std::bool_constant<
+  //     (details::strseq_unique_helper<> {} + ... + string_constant<Ss> {})
+  //       .size() == sizeof...(Ss)> {};
+  
+  // template <class SSeq>
+  // inline constexpr bool string_sequence_unique_v =
+  //   string_sequence_unique<SSeq>::value;
+  
   template <fixed_string... Ss>
-  struct string_sequence_unique<string_sequence<Ss...>> :
-    std::bool_constant<
-      (details::strseq_unique_helper<> {} + ... + string_constant<Ss> {})
-        .size() == sizeof...(Ss)> {};
-
-  template <class SSeq>
-  inline constexpr bool string_sequence_unique_v =
-    string_sequence_unique<SSeq>::value;
+  inline constexpr bool string_pack_unique_v =
+    (details::strseq_unique_helper<> {} + ... + string_constant<Ss> {}).size() == sizeof...(Ss);
   
   namespace details {
     template <size_t I, class T, T V>

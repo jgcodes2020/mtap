@@ -26,7 +26,7 @@
 #include <mtap/meta_helpers.hpp>
 
 namespace mtap {
-  class argument_error : public std::runtime_error::runtime_error {
+  class argument_error : public std::runtime_error {
   public:
     argument_error(const char* what) : runtime_error(what) {}
     argument_error(const std::string& what) : runtime_error(what) {}
@@ -201,6 +201,29 @@ namespace mtap {
             std::integral_constant<size_t, I>, I + 1> {};
         }
       }
+      
+      template <fixed_string... Ns>
+      constexpr std::vector<std::pair<size_t, std::string_view>> extract_shorts() {
+        size_t i = 0;
+        std::vector<std::pair<size_t, std::string_view>> res;
+        for (auto s : {std::string_view(Ns)...}) {
+          if (s.size() == 2)
+            res.push_back({i, s});
+          i++;
+        }
+        return res;
+      }
+      template <fixed_string... Ns>
+      constexpr std::vector<std::pair<size_t, std::string_view>> extract_longs() {
+        size_t i = 0;
+        std::vector<std::pair<size_t, std::string_view>> res;
+        for (auto s : {std::string_view(Ns)...}) {
+          if (s.size() == 2)
+            res.push_back({i, s});
+          i++;
+        }
+        return res;
+      }
     };
   }  // namespace details
 
@@ -210,7 +233,7 @@ namespace mtap {
   template <fixed_string... Ns, size_t... Ss, class... Fs>
   class parser<details::opt_impl<Ns, Ss, Fs>...> {
     static_assert(
-      string_sequence_unique_v<string_sequence<Ns...>>,
+      string_pack_unique_v<Ns...>,
       "All option switches must be unique");
 
   private:
@@ -282,21 +305,13 @@ namespace mtap {
     }
 
     static vtable_short_t make_short_vtable() {
-
-      return []<fixed_string... VNs, size_t... VIs>(
-        type_sequence<details::string_index_leaf<VIs, VNs>...>) {
-        return vtable_short_t {{VNs[1], dispatch_short<VIs>}...};
-      }
-      (typename option_filter_t::short_opts {});
+     constexpr auto vals = details::extract_shorts<Ns...>();
+      return vtable_long_t(vals.begin(), vals.end());
     }
 
     static vtable_long_t make_long_vtable() {
-
-      return []<fixed_string... VNs, size_t... VIs>(
-        type_sequence<details::string_index_leaf<VIs, VNs>...>) {
-        return vtable_long_t {{VNs, dispatch_long<VIs>}...};
-      }
-      (typename option_filter_t::long_opts {});
+      constexpr auto vals = details::extract_longs<Ns...>();
+      return vtable_long_t(vals.begin(), vals.end());
     }
 
   public:
