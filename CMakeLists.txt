@@ -1,3 +1,5 @@
+set(CMAKE_EXPORT_COMPILE_COMMANDS yes)
+
 cmake_minimum_required(VERSION 3.15)
 project(mtap
   LANGUAGES CXX
@@ -16,5 +18,3 @@ if (MTAP_BUILD_TESTS)
   )
   target_link_libraries(example PUBLIC mtap)
 endif()
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS yes)

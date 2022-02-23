@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -30,7 +31,7 @@ namespace mtap {
   public:
     argument_error(const char* what) : runtime_error(what) {}
     argument_error(const std::string& what) : runtime_error(what) {}
-    
+
     argument_error(const argument_error& rhs) noexcept = default;
   };
 
@@ -52,9 +53,9 @@ namespace mtap {
     using make_callback_sig =
       typename callback_sig_helper<std::make_index_sequence<I>>::type;
 
-    
     template <class T, class R, class... Args>
-    constexpr bool callable_helper(std::type_identity<T>, std::type_identity<R(Args...)>) {
+    constexpr bool callable_helper(
+      std::type_identity<T>, std::type_identity<R(Args...)>) {
       if constexpr (std::is_invocable_v<T, Args...>)
         return std::is_convertible_v<std::invoke_result_t<T, Args...>, R>;
       else
@@ -62,7 +63,8 @@ namespace mtap {
     }
 
     template <class T, class F>
-    concept callable = callable_helper(std::type_identity<T> {}, std::type_identity<F> {});
+    concept callable =
+      callable_helper(std::type_identity<T> {}, std::type_identity<F> {});
 
     constexpr bool isalnum(char c) {
       return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') ||
@@ -148,22 +150,23 @@ namespace mtap {
       class ShortSeq = type_sequence<>, class LongSeq = type_sequence<>,
       class PAIndex = void, size_t Index = 0>
     struct option_filter;
-    
+
     template <class PA>
     struct eval_posarg_index;
-    
+
     template <>
     struct eval_posarg_index<void> {
       static constexpr std::optional<size_t> value = std::nullopt;
     };
-    
+
     template <size_t I>
-    struct eval_posarg_index<std::integral_constant<size_t, I>>  {
+    struct eval_posarg_index<std::integral_constant<size_t, I>> {
       static constexpr std::optional<size_t> value = I;
     };
-    
+
     template <class PA>
-    inline constexpr std::optional<size_t> eval_posarg_index_v = eval_posarg_index<PA>::value;
+    inline constexpr std::optional<size_t> eval_posarg_index_v =
+      eval_posarg_index<PA>::value;
 
     template <
       fixed_string... SNs, size_t... SIs, fixed_string... LNs, size_t... LIs,
@@ -173,7 +176,8 @@ namespace mtap {
       type_sequence<string_index_leaf<LIs, LNs>...>, PA, I> {
       using short_opts = type_sequence<string_index_leaf<SIs, SNs>...>;
       using long_opts  = type_sequence<string_index_leaf<LIs, LNs>...>;
-      static constexpr std::optional<size_t> pos_arg_index = eval_posarg_index_v<PA>;
+      static constexpr std::optional<size_t> pos_arg_index =
+        eval_posarg_index_v<PA>;
 
       template <fixed_string N, size_t S, class F>
       constexpr auto operator+(std::type_identity<opt_impl<N, S, F>>) {
@@ -201,30 +205,75 @@ namespace mtap {
             std::integral_constant<size_t, I>, I + 1> {};
         }
       }
-      
-      template <fixed_string... Ns>
-      constexpr std::vector<std::pair<size_t, std::string_view>> extract_shorts() {
-        size_t i = 0;
-        std::vector<std::pair<size_t, std::string_view>> res;
-        for (auto s : {std::string_view(Ns)...}) {
-          if (s.size() == 2)
-            res.push_back({i, s});
-          i++;
-        }
-        return res;
-      }
-      template <fixed_string... Ns>
-      constexpr std::vector<std::pair<size_t, std::string_view>> extract_longs() {
-        size_t i = 0;
-        std::vector<std::pair<size_t, std::string_view>> res;
-        for (auto s : {std::string_view(Ns)...}) {
-          if (s.size() == 2)
-            res.push_back({i, s});
-          i++;
-        }
-        return res;
-      }
     };
+
+    template <fixed_string... Ss, size_t... Ns, class... Fs>
+    constexpr size_t count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...>) {
+      std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
+        {std::string_view(Ss), Ns}...};
+
+      return std::count_if(
+        pairs.begin(), pairs.end(),
+        [](const std::pair<std::string_view, size_t>& pair) {
+        return classify_opt(pair.first, pair.second) == opt_type::short_opt;
+        });
+    }
+    template <fixed_string... Ss, size_t... Ns, class... Fs>
+    constexpr size_t count_longs(type_sequence<opt_impl<Ss, Ns, Fs>...>) {
+      std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
+        {std::string_view(Ss), Ns}...};
+
+      return std::count_if(
+        pairs.begin(), pairs.end(),
+        [](const std::pair<std::string_view, size_t>& pair) {
+        return classify_opt(pair.first, pair.second) == opt_type::long_opt;
+        });
+    }
+
+    template <fixed_string... Ss, size_t... Ns, class... Fs>
+    constexpr std::array<
+      std::pair<char, size_t>,
+      count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
+    filter_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...>) {
+      std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
+        {std::string_view(Ss), Ns}...};
+      std::array<
+        std::pair<char, size_t>,
+        count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
+        arr;
+
+      size_t i = 0;
+      auto it  = arr.begin();
+      for (const auto& [sw, nargs]: pairs) {
+        if (classify_opt(sw, nargs) == opt_type::short_opt)
+          *it++ = {sw[1], i};
+        i++;
+      }
+
+      return arr;
+    }
+    template <fixed_string... Ss, size_t... Ns, class... Fs>
+    constexpr std::array<
+      std::pair<std::string_view, size_t>,
+      count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
+    filter_longs(type_sequence<opt_impl<Ss, Ns, Fs>...>) {
+      std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
+        {std::string_view(Ss), Ns}...};
+      std::array<
+        std::pair<std::string_view, size_t>,
+        count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
+        arr;
+
+      size_t i = 0;
+      auto it  = arr.begin();
+      for (const auto& [sw, nargs]: pairs) {
+        if (classify_opt(sw, nargs) == opt_type::long_opt)
+          *it++ = {sw.substr(2), i};
+        i++;
+      }
+
+      return arr;
+    }
   }  // namespace details
 
   template <class... Opts>
@@ -233,8 +282,7 @@ namespace mtap {
   template <fixed_string... Ns, size_t... Ss, class... Fs>
   class parser<details::opt_impl<Ns, Ss, Fs>...> {
     static_assert(
-      string_pack_unique_v<Ns...>,
-      "All option switches must be unique");
+      string_pack_unique_v<Ns...>, "All option switches must be unique");
 
   private:
     using vtable_short_t = std::unordered_map<
@@ -242,10 +290,10 @@ namespace mtap {
     using vtable_long_t = std::unordered_map<
       std::string_view,
       size_t (*)(std::tuple<Fs...>&, int, const char*[], int)>;
-    
+
     using option_filter_t = decltype((
-        details::option_filter<> {} + ... +
-        std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}));
+      details::option_filter<> {} + ... +
+      std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}));
 
     std::unique_ptr<std::tuple<Fs...>> ctable;
     vtable_short_t short_vtable;
@@ -305,13 +353,23 @@ namespace mtap {
     }
 
     static vtable_short_t make_short_vtable() {
-     constexpr auto vals = details::extract_shorts<Ns...>();
-      return vtable_long_t(vals.begin(), vals.end());
+      constexpr auto vals = details::filter_shorts(
+        type_sequence<details::opt_impl<Ns, Ss, Fs>...> {});
+      return [&]<size_t... Is>(std::index_sequence<Is...>) {
+        return vtable_short_t {
+          {vals[Is].first, dispatch_short<vals[Is].second>}...};
+      }
+      (std::make_index_sequence<vals.size()> {});
     }
 
     static vtable_long_t make_long_vtable() {
-      constexpr auto vals = details::extract_longs<Ns...>();
-      return vtable_long_t(vals.begin(), vals.end());
+      constexpr auto vals = details::filter_longs(
+        type_sequence<details::opt_impl<Ns, Ss, Fs>...> {});
+      return [&]<size_t... Is>(std::index_sequence<Is...>) {
+        return vtable_long_t {
+          {vals[Is].first, dispatch_long<vals[Is].second>}...};
+      }
+      (std::make_index_sequence<vals.size()> {});
     }
 
   public:
@@ -390,7 +448,7 @@ namespace mtap {
         else {
           static constexpr auto posarg = option_filter_t::pos_arg_index;
           if constexpr (posarg.has_value()) {
-            std::get<posarg.value()>(*ctable)(argv[i++]);
+            std::get<posarg.value()> (*ctable)(argv[i++]);
           }
         }
       }
