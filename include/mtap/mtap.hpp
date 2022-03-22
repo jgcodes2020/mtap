@@ -146,66 +146,6 @@ namespace mtap {
   }
 
   namespace details {
-    template <
-      class ShortSeq = type_sequence<>, class LongSeq = type_sequence<>,
-      class PAIndex = void, size_t Index = 0>
-    struct option_filter;
-
-    template <class PA>
-    struct eval_posarg_index;
-
-    template <>
-    struct eval_posarg_index<void> {
-      static constexpr std::optional<size_t> value = std::nullopt;
-    };
-
-    template <size_t I>
-    struct eval_posarg_index<std::integral_constant<size_t, I>> {
-      static constexpr std::optional<size_t> value = I;
-    };
-
-    template <class PA>
-    inline constexpr std::optional<size_t> eval_posarg_index_v =
-      eval_posarg_index<PA>::value;
-
-    template <
-      fixed_string... SNs, size_t... SIs, fixed_string... LNs, size_t... LIs,
-      class PA, size_t I>
-    struct option_filter<
-      type_sequence<string_index_leaf<SIs, SNs>...>,
-      type_sequence<string_index_leaf<LIs, LNs>...>, PA, I> {
-      using short_opts = type_sequence<string_index_leaf<SIs, SNs>...>;
-      using long_opts  = type_sequence<string_index_leaf<LIs, LNs>...>;
-      static constexpr std::optional<size_t> pos_arg_index =
-        eval_posarg_index_v<PA>;
-
-      template <fixed_string N, size_t S, class F>
-      constexpr auto operator+(std::type_identity<opt_impl<N, S, F>>) {
-        if constexpr (opt_impl<N, S, F>::type == opt_type::short_opt) {
-          return option_filter<
-            type_sequence<
-              string_index_leaf<SIs, SNs>..., string_index_leaf<I, N>>,
-            type_sequence<string_index_leaf<LIs, LNs>...>, PA, I + 1> {};
-        }
-        else if constexpr (opt_impl<N, S, F>::type == opt_type::long_opt) {
-          return option_filter<
-            type_sequence<string_index_leaf<SIs, SNs>...>,
-            type_sequence<
-              string_index_leaf<LIs, LNs>...,
-              string_index_leaf<I, N.template substr<2>()>>,
-            PA, I + 1> {};
-        }
-        else if constexpr (opt_impl<N, S, F>::type == opt_type::pos_arg) {
-          static_assert(
-            std::is_void_v<PA>,
-            "Only one positional argument handler is allowed");
-          return option_filter<
-            type_sequence<string_index_leaf<SIs, SNs>...>,
-            type_sequence<string_index_leaf<LIs, LNs>...>,
-            std::integral_constant<size_t, I>, I + 1> {};
-        }
-      }
-    };
 
     template <fixed_string... Ss, size_t... Ns, class... Fs>
     constexpr size_t count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...>) {
@@ -231,16 +171,11 @@ namespace mtap {
     }
 
     template <fixed_string... Ss, size_t... Ns, class... Fs>
-    constexpr std::array<
-      std::pair<char, size_t>,
-      count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
-    filter_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...>) {
+    constexpr decltype(auto) filter_shorts(
+      type_sequence<opt_impl<Ss, Ns, Fs>...> seq) {
       std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
         {std::string_view(Ss), Ns}...};
-      std::array<
-        std::pair<char, size_t>,
-        count_shorts(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
-        arr;
+      std::array<std::pair<char, size_t>, count_shorts(seq)> arr;
 
       size_t i = 0;
       auto it  = arr.begin();
@@ -253,10 +188,8 @@ namespace mtap {
       return arr;
     }
     template <fixed_string... Ss, size_t... Ns, class... Fs>
-    constexpr std::array<
-      std::pair<std::string_view, size_t>,
-      count_longs(type_sequence<opt_impl<Ss, Ns, Fs>...> {})>
-    filter_longs(type_sequence<opt_impl<Ss, Ns, Fs>...> seq) {
+    constexpr decltype(auto) filter_longs(
+      type_sequence<opt_impl<Ss, Ns, Fs>...> seq) {
       std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
         {std::string_view(Ss), Ns}...};
       std::array<std::pair<std::string_view, size_t>, count_longs(seq)> arr;
@@ -270,6 +203,28 @@ namespace mtap {
       }
 
       return arr;
+    }
+
+    template <fixed_string... Ss, size_t... Ns, class... Fs>
+    constexpr decltype(auto) find_posarg(
+      type_sequence<opt_impl<Ss, Ns, Fs>...> seq) {
+      std::initializer_list<std::pair<std::string_view, size_t>> pairs = {
+        {std::string_view(Ss), Ns}...};
+
+      std::optional<size_t> res = std::nullopt;
+      size_t i                  = 0;
+      for (const auto& [sw, nargs] : pairs) {
+        if (classify_opt(sw, nargs) == opt_type::pos_arg) {
+          if (!res) {
+            res = i;
+          }
+          else {
+            throw std::runtime_error("SCREW YOU!");
+          }
+        }
+        ++i;
+      }
+      return res;
     }
   }  // namespace details
 
@@ -287,10 +242,6 @@ namespace mtap {
     using vtable_long_t = std::unordered_map<
       std::string_view,
       size_t (*)(std::tuple<Fs...>&, int, const char*[], int)>;
-
-    using option_filter_t = decltype((
-      details::option_filter<> {} + ... +
-      std::type_identity<details::opt_impl<Ns, Ss, Fs>> {}));
 
     std::unique_ptr<std::tuple<Fs...>> ctable;
     vtable_short_t short_vtable;
@@ -387,7 +338,9 @@ namespace mtap {
 
   private:
     void main_parser(int argc, const char* argv[]) {
-      bool parse_opts = true;
+      bool parse_opts              = true;
+      static constexpr auto posarg = details::find_posarg(
+        type_sequence<details::opt_impl<Ns, Ss, Fs>...> {});
       for (int i = 1; i < argc;) {
         const char* arg = argv[i];
         if (arg[0] == '-' && parse_opts) {
@@ -442,16 +395,20 @@ namespace mtap {
             }
           }
           else {
-            static constexpr auto posarg = option_filter_t::pos_arg_index;
             if constexpr (posarg.has_value()) {
               std::get<posarg.value()> (*ctable)(argv[i++]);
+            }
+            else {
+              ++i;
             }
           }
         }
         else {
-          static constexpr auto posarg = option_filter_t::pos_arg_index;
           if constexpr (posarg.has_value()) {
             std::get<posarg.value()> (*ctable)(argv[i++]);
+          }
+          else {
+            ++i;
           }
         }
       }
