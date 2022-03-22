@@ -16,5 +16,9 @@ if (MTAP_BUILD_TESTS)
   add_executable(example
     test/example.cpp
   )
+  add_executable(one-arg
+    test/one-arg.cpp
+  )
   target_link_libraries(example PUBLIC mtap)
+  target_link_libraries(one-arg PUBLIC mtap)
 endif()
