@@ -293,11 +293,11 @@ namespace mtap {
       }
       else {
         [&]<size_t... Is>(std::index_sequence<Is...>) {
-          std::get<I>(tup)(argv[iarg + Is]...);
+          std::get<I>(tup)(argv[iarg + Is + 1]...);
         }
         (std::make_index_sequence<arg_size> {});
       }
-      return arg_size;
+      return arg_size + 1;
     }
 
     static vtable_short_t make_short_vtable() {
@@ -358,7 +358,7 @@ namespace mtap {
               catch (const std::out_of_range& out) {
                 std::throw_with_nested(argument_error("Cannot use option"));
               }
-              i += (last_narg + 1);
+              i += last_narg + 1;
             }
             else
               throw argument_error("Invalid long-option string");

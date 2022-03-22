@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <string_view>
 #include <mtap/mtap.hpp>
 
 using mtap::option, mtap::pos_arg;
@@ -16,9 +17,8 @@ void print_csv(const T& x) {
 
 int main(int argc, const char* argv[]) {
   mtap::parser(
-    option<"--help", 0>([]() {
-      std::cout << "Some usage options\n";
-      std::exit(0);
+    option<"--test", 1>([](std::string_view val) {
+      std::cout << "--test: " << val << "\n";
     })
   ).parse(argc, argv);
 }
