@@ -359,6 +359,7 @@ namespace mtap {
                 std::throw_with_nested(argument_error("Cannot use option"));
               }
               i += last_narg + 1;
+              continue;
             }
             else
               throw argument_error("Invalid long-option string");
@@ -393,6 +394,7 @@ namespace mtap {
                 break;
               }
             }
+            continue;
           }
           else {
             if constexpr (posarg.has_value()) {
@@ -401,6 +403,7 @@ namespace mtap {
             else {
               ++i;
             }
+            continue;
           }
         }
         else {
@@ -410,7 +413,9 @@ namespace mtap {
           else {
             ++i;
           }
+          continue;
         }
+        throw std::logic_error("INTERNAL ERROR: parsing loop incomplete");
       }
     }
 
