@@ -297,7 +297,7 @@ namespace mtap {
         }
         (std::make_index_sequence<arg_size> {});
       }
-      return arg_size + 1;
+      return arg_size;
     }
 
     static vtable_short_t make_short_vtable() {

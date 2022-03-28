@@ -16,9 +16,12 @@ void print_csv(const T& x) {
 }
 
 int main(int argc, const char* argv[]) {
-  mtap::parser(
+  mtap::parser {
     option<"--test", 1>([](std::string_view val) {
       std::cout << "--test: " << val << "\n";
-    })
-  ).parse(argc, argv);
+    }),
+    pos_arg([](std::string_view arg) {
+      std::cout << "posarg: " << arg << "\n";
+    }),
+  }.parse(argc, argv);
 }
